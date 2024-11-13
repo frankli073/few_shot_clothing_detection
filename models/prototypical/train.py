@@ -2,7 +2,7 @@
 # coding=utf-8
 from prototypical_batch_sampler import PrototypicalBatchSampler
 from prototypical_loss import PrototypicalLoss
-from dataset import ClothingDataset
+from ClothingDataset import ClothingDataset
 from protonet import ProtoNet
 from parser_util import get_parser
 
@@ -13,9 +13,9 @@ import os
 
 
 def init_seed(opt):
-    '''
-    Disable cudnn to maximize reproducibility
-    '''
+    """
+    Disable cudnn for reproducibility.
+    """
     torch.backends.cudnn.enabled = False
     np.random.seed(opt.manual_seed)
     torch.manual_seed(opt.manual_seed)
@@ -23,66 +23,46 @@ def init_seed(opt):
         torch.cuda.manual_seed(opt.manual_seed)
 
 
-def init_sampler(opt, labels, mode):
-    '''
-    Initialize the PrototypicalBatchSampler
-    '''
-    if 'train' in mode:
-        classes_per_it = opt.classes_per_it_tr
-        num_samples = opt.num_support_tr + opt.num_query_tr
-    else:
-        classes_per_it = opt.classes_per_it_val
-        num_samples = opt.num_support_val + opt.num_query_val
-
-    return PrototypicalBatchSampler(
-        labels=labels,
-        classes_per_it=classes_per_it,
-        num_samples=num_samples,
-        iterations=opt.iterations
-    )
-
-
 def init_dataloader(opt, mode):
-    '''
-    Initialize the DataLoader
-    '''
-    dataset = ClothingDataset(mode=mode, root=opt.dataset_root)
-    sampler = init_sampler(opt, dataset.y, mode)
+    """
+    Initialize DataLoader for training or validation.
+    """
+    if mode == 'train':
+        dataset = ClothingDataset(mode=opt.train_dataset, root=opt.dataset_root)
+        sampler = PrototypicalBatchSampler(
+            labels=dataset.targets,
+            classes_per_it=opt.classes_per_it_tr,
+            num_samples=opt.num_support_tr + opt.num_query_tr,
+            iterations=opt.iterations
+        )
+    elif mode == 'val':
+        dataset = ClothingDataset(mode=opt.val_dataset, root=opt.dataset_root)
+        sampler = PrototypicalBatchSampler(
+            labels=dataset.targets,
+            classes_per_it=opt.classes_per_it_val,
+            num_samples=opt.num_support_val + opt.num_query_val,
+            iterations=opt.iterations
+        )
+    else:
+        raise ValueError("Mode must be 'train' or 'val'.")
+
     dataloader = torch.utils.data.DataLoader(dataset, batch_sampler=sampler)
     return dataloader
 
 
 def init_protonet(opt):
-    '''
-    Initialize the ProtoNet
-    '''
+    """
+    Initialize the ProtoNet.
+    """
     device = 'cuda:0' if torch.cuda.is_available() and opt.cuda else 'cpu'
-    model = ProtoNet(x_dim=3, hid_dim=64, z_dim=64).to(device)  # Adjust dimensions as needed
+    model = ProtoNet(x_dim=3, hid_dim=64, z_dim=64).to(device)
     return model
 
 
-def init_optimizer(opt, model):
-    '''
-    Initialize optimizer
-    '''
-    return torch.optim.Adam(params=model.parameters(), lr=opt.learning_rate)
-
-
-def init_lr_scheduler(opt, optimizer):
-    '''
-    Initialize the learning rate scheduler
-    '''
-    return torch.optim.lr_scheduler.StepLR(
-        optimizer=optimizer,
-        gamma=opt.lr_scheduler_gamma,
-        step_size=opt.lr_scheduler_step
-    )
-
-
 def train(opt, tr_dataloader, model, optimizer, lr_scheduler, val_dataloader=None):
-    '''
-    Train the model with the prototypical learning algorithm
-    '''
+    """
+    Train the Prototypical Network.
+    """
     device = 'cuda:0' if torch.cuda.is_available() and opt.cuda else 'cpu'
 
     criterion = PrototypicalLoss(n_support=opt.num_support_tr).to(device)
@@ -96,8 +76,7 @@ def train(opt, tr_dataloader, model, optimizer, lr_scheduler, val_dataloader=Non
 
         # Training phase
         model.train()
-        train_loss = []
-        train_acc = []
+        train_loss, train_acc = [], []
         for batch in tqdm(tr_dataloader, desc="Training"):
             optimizer.zero_grad()
             x, y = batch
@@ -119,8 +98,7 @@ def train(opt, tr_dataloader, model, optimizer, lr_scheduler, val_dataloader=Non
         # Validation phase
         if val_dataloader:
             model.eval()
-            val_loss = []
-            val_acc = []
+            val_loss, val_acc = [], []
             with torch.no_grad():
                 for batch in tqdm(val_dataloader, desc="Validation"):
                     x, y = batch
@@ -144,9 +122,9 @@ def train(opt, tr_dataloader, model, optimizer, lr_scheduler, val_dataloader=Non
 
 
 def main():
-    '''
-    Initialize everything and train
-    '''
+    """
+    Main training function.
+    """
     options = get_parser().parse_args()
     os.makedirs(options.experiment_root, exist_ok=True)
 
@@ -155,16 +133,17 @@ def main():
 
     init_seed(options)
 
-    # Initialize dataloaders
+    # Use `top_10` for initial training and validation
+    options.train_dataset = 'top_10'
+    options.val_dataset = 'top_10'
+
     tr_dataloader = init_dataloader(options, mode='train')
     val_dataloader = init_dataloader(options, mode='val')
 
-    # Initialize model, optimizer, and scheduler
     model = init_protonet(options)
-    optimizer = init_optimizer(options, model)
-    lr_scheduler = init_lr_scheduler(options, optimizer)
+    optimizer = torch.optim.Adam(model.parameters(), lr=options.learning_rate)
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=options.lr_scheduler_step, gamma=options.lr_scheduler_gamma)
 
-    # Train the model
     train(
         opt=options,
         tr_dataloader=tr_dataloader,
