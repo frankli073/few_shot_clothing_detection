@@ -73,13 +73,18 @@ def train(opt, tr_dataloader, model, optimizer, lr_scheduler, val_dataloader=Non
     val_loss_history = []
     val_acc_history = []
     # Create dynamic output folder
-    mode_folder = f"{opt.train_dataset}_train_{opt.val_dataset}_val"
-    output_folder = os.path.join(opt.experiment_root, mode_folder)
+    output_folder = os.path.join(
+        "C:\work\few_shot_clothing_detection\models\prototypical\output"
+    )
     os.makedirs(output_folder, exist_ok=True)
 
-    best_model_path = os.path.join(output_folder, 'best_model.pth')
-    last_model_path = os.path.join(output_folder, 'last_model.pth')
-
+    # Define model checkpoint filenames
+    best_model_path = os.path.join(
+        output_folder, f"{opt.train_dataset}_train_{opt.val_dataset}_val_best_model.pth"
+    )
+    last_model_path = os.path.join(
+        output_folder, f"{opt.train_dataset}_train_{opt.val_dataset}_val_last_model.pth"
+    )
     best_acc = 0
     no_improvement = 0
 
