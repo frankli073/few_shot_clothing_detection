@@ -67,9 +67,21 @@ def train(opt, tr_dataloader, model, optimizer, lr_scheduler, val_dataloader=Non
 
     criterion = PrototypicalLoss(n_support=opt.num_support_tr).to(device)
 
+    # Initialize logging variables
+    train_loss_history = []
+    train_acc_history = []
+    val_loss_history = []
+    val_acc_history = []
+    # Create dynamic output folder
+    mode_folder = f"{opt.train_dataset}_train_{opt.val_dataset}_val"
+    output_folder = os.path.join(opt.experiment_root, mode_folder)
+    os.makedirs(output_folder, exist_ok=True)
+
+    best_model_path = os.path.join(output_folder, 'best_model.pth')
+    last_model_path = os.path.join(output_folder, 'last_model.pth')
+
     best_acc = 0
-    best_model_path = os.path.join(opt.experiment_root, 'best_model.pth')
-    last_model_path = os.path.join(opt.experiment_root, 'last_model.pth')
+    no_improvement = 0
 
     for epoch in range(opt.epochs):
         print(f'=== Epoch: {epoch + 1}/{opt.epochs} ===')
@@ -91,11 +103,13 @@ def train(opt, tr_dataloader, model, optimizer, lr_scheduler, val_dataloader=Non
 
         avg_train_loss = np.mean(train_loss)
         avg_train_acc = np.mean(train_acc)
+        train_loss_history.append(avg_train_loss)
+        train_acc_history.append(avg_train_acc)
         print(f"Train Loss: {avg_train_loss:.4f}, Train Acc: {avg_train_acc:.4f}")
 
         lr_scheduler.step()
 
-        # Validation phase
+        # Validation Phase
         if val_dataloader:
             model.eval()
             val_loss, val_acc = [], []
@@ -111,31 +125,46 @@ def train(opt, tr_dataloader, model, optimizer, lr_scheduler, val_dataloader=Non
 
             avg_val_loss = np.mean(val_loss)
             avg_val_acc = np.mean(val_acc)
+            val_loss_history.append(avg_val_loss)
+            val_acc_history.append(avg_val_acc)
             print(f"Val Loss: {avg_val_loss:.4f}, Val Acc: {avg_val_acc:.4f}")
 
+            # Overfitting Check
+            if len(val_loss_history) > 1 and avg_val_loss > min(val_loss_history[:-1]):
+                print(f"Warning: Possible overfitting detected at epoch {epoch + 1}.")
+
+            # Early Stopping
             if avg_val_acc > best_acc:
                 best_acc = avg_val_acc
+                no_improvement = 0  # Reset patience
                 torch.save(model.state_dict(), best_model_path)
+            else:
+                no_improvement += 1
+
 
     torch.save(model.state_dict(), last_model_path)
     print(f"Training complete. Best Val Acc: {best_acc:.4f}")
 
+    # Save Metrics
+    np.save(os.path.join(output_folder, 'train_loss.npy'), train_loss_history)
+    np.save(os.path.join(output_folder, 'train_acc.npy'), train_acc_history)
+    np.save(os.path.join(output_folder, 'val_loss.npy'), val_loss_history)
+    np.save(os.path.join(output_folder, 'val_acc.npy'), val_acc_history)
 
 def main():
     """
     Main training function.
     """
     options = get_parser().parse_args()
-    os.makedirs(options.experiment_root, exist_ok=True)
 
     if torch.cuda.is_available() and not options.cuda:
         print("WARNING: CUDA device is available but not enabled. Run with --cuda to enable.")
 
     init_seed(options)
 
-    # Use `top_10` for initial training and validation
-    options.train_dataset = 'top_10'
-    options.val_dataset = 'top_10'
+    # Use dataset modes for dynamic folder naming
+    options.train_dataset = 'top_10'  # Change this to top_10 or top_100 or all_data
+    options.val_dataset = 'top_10'    # Change this to top_10 or top_100 or all_data
 
     tr_dataloader = init_dataloader(options, mode='train')
     val_dataloader = init_dataloader(options, mode='val')
