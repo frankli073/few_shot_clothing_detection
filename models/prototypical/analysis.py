@@ -16,10 +16,10 @@ def load_metrics(output_folder, dataset_name):
     """
     metrics = {}
     try:
-        metrics['train_loss'] = np.load(os.path.join(output_folder, f"{dataset_name}_train_loss.npy"))
-        metrics['train_acc'] = np.load(os.path.join(output_folder, f"{dataset_name}_train_acc.npy"))
-        metrics['val_loss'] = np.load(os.path.join(output_folder, f"{dataset_name}_val_loss.npy"))
-        metrics['val_acc'] = np.load(os.path.join(output_folder, f"{dataset_name}_val_acc.npy"))
+        metrics['train_loss'] = np.load(os.path.join(output_folder, f"{dataset_name}\\train_loss.npy"))
+        metrics['train_acc'] = np.load(os.path.join(output_folder, f"{dataset_name}\\train_acc.npy"))
+        metrics['val_loss'] = np.load(os.path.join(output_folder, f"{dataset_name}\\val_loss.npy"))
+        metrics['val_acc'] = np.load(os.path.join(output_folder, f"{dataset_name}\\val_acc.npy"))
     except FileNotFoundError as e:
         print(f"Error: {e}")
         print("Ensure the metric files exist in the specified output folder.")
@@ -44,6 +44,7 @@ def plot_comparison(output_folder, datasets, metric_type, ylabel, title, output_
     for dataset in datasets:
         metrics = load_metrics(output_folder, dataset)
         if metrics is None:
+            print("not work!!")
             continue
         plt.plot(metrics[metric_type], label=dataset)
 
