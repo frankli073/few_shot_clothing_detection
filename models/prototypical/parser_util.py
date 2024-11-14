@@ -13,17 +13,17 @@ def get_parser():
     parser.add_argument('-exp', '--experiment_root',
                         type=str,
                         help='Root where to store models, losses, and accuracies',
-                        default='C:\\work\\few_shot_clothing_detection\\output')
+                        default='C:\\work\\few_shot_clothing_detection\\models\\prototypical\\output')
 
     parser.add_argument('-nep', '--epochs',
                         type=int,
                         help='Number of epochs to train for',
-                        default=10)
+                        default=100)
 
     parser.add_argument('-lr', '--learning_rate',
                         type=float,
                         help='Learning rate for the model, default=0.001',
-                        default=0.001)
+                        default=0.0005)
 
     parser.add_argument('-lrS', '--lr_scheduler_step',
                         type=int,
