@@ -25,7 +25,7 @@ def init_seed(opt):
 
 def init_dataloader(opt, mode):
     """
-    Initialize DataLoader for training or validation.
+    Initialize DataLoader for training, validation, or testing.
     """
     dataset = ClothingDataset(mode=opt.train_dataset if mode == 'train' else opt.val_dataset, root=opt.dataset_root)
     sampler = PrototypicalBatchSampler(
@@ -49,10 +49,9 @@ def init_protonet(opt):
 
 def train(opt, tr_dataloader, model, optimizer, lr_scheduler, val_dataloader=None):
     """
-    Train the Prototypical Network.
+    Train the Prototypical Network and log results.
     """
     device = 'cuda:0' if torch.cuda.is_available() and opt.cuda else 'cpu'
-
     criterion = PrototypicalLoss(n_support=opt.num_support_tr).to(device)
 
     # Initialize logging variables
@@ -60,21 +59,24 @@ def train(opt, tr_dataloader, model, optimizer, lr_scheduler, val_dataloader=Non
     train_acc_history = []
     val_loss_history = []
     val_acc_history = []
+
     # Create dynamic output folder
     mode_folder = f"{opt.train_dataset}_train_{opt.val_dataset}_val"
-    output_folder = os.path.join(opt.experiment_root, mode_folder)
+    output_folder = os.path.join(
+        "C:\\work\\few_shot_clothing_detection\\models\\prototypical\\output", mode_folder
+    )
     os.makedirs(output_folder, exist_ok=True)
 
+    # Define model checkpoint filenames
     best_model_path = os.path.join(output_folder, 'best_model.pth')
     last_model_path = os.path.join(output_folder, 'last_model.pth')
 
     best_acc = 0
-    no_improvement = 0
 
     for epoch in range(opt.epochs):
         print(f'=== Epoch: {epoch + 1}/{opt.epochs} ===')
 
-        # Training phase
+        # Training Phase
         model.train()
         train_loss, train_acc = [], []
         for batch in tqdm(tr_dataloader, desc="Training"):
@@ -117,27 +119,22 @@ def train(opt, tr_dataloader, model, optimizer, lr_scheduler, val_dataloader=Non
             val_acc_history.append(avg_val_acc)
             print(f"Val Loss: {avg_val_loss:.4f}, Val Acc: {avg_val_acc:.4f}")
 
-            # Overfitting Check
-            if len(val_loss_history) > 1 and avg_val_loss > min(val_loss_history[:-1]):
-                print(f"Warning: Possible overfitting detected at epoch {epoch + 1}.")
-
-            # Early Stopping
+            # Save the best model
             if avg_val_acc > best_acc:
                 best_acc = avg_val_acc
-                no_improvement = 0  # Reset patience
                 torch.save(model.state_dict(), best_model_path)
-            else:
-                no_improvement += 1
 
-
+    # Save the final model
     torch.save(model.state_dict(), last_model_path)
-    print(f"Training complete. Best Val Acc: {best_acc:.4f}")
 
-    # Save Metrics
+    # Save metrics
     np.save(os.path.join(output_folder, 'train_loss.npy'), train_loss_history)
     np.save(os.path.join(output_folder, 'train_acc.npy'), train_acc_history)
     np.save(os.path.join(output_folder, 'val_loss.npy'), val_loss_history)
     np.save(os.path.join(output_folder, 'val_acc.npy'), val_acc_history)
+
+    print(f"Training complete. Best Val Acc: {best_acc:.4f}")
+
 
 def main():
     """
@@ -151,14 +148,14 @@ def main():
     init_seed(options)
 
     # Use dataset modes for dynamic folder naming
-    options.train_dataset = 'all_data'  # Change this to top_10 or top_100 or all_data
-    options.val_dataset = 'all_data'    # Change this to top_10 or top_100 or all_data
+    options.train_dataset = 'top_10'  # Change this as needed
+    options.val_dataset = 'top_10'    # Change this as needed
 
     tr_dataloader = init_dataloader(options, mode='train')
     val_dataloader = init_dataloader(options, mode='val')
 
     model = init_protonet(options)
-    optimizer = torch.optim.Adam(model.parameters(), lr=options.learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(), lr=options.learning_rate, weight_decay=1e-4)  # Added weight decay
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=options.lr_scheduler_step, gamma=options.lr_scheduler_gamma)
 
     train(
