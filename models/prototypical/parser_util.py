@@ -23,7 +23,7 @@ def get_parser():
     parser.add_argument('-lr', '--learning_rate',
                         type=float,
                         help='Learning rate for the model, default=0.001',
-                        default=0.0005)
+                        default=0.001)
 
     parser.add_argument('-lrS', '--lr_scheduler_step',
                         type=int,
