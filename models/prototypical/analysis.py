@@ -62,7 +62,7 @@ def plot_comparison(output_folder, datasets, metric_type, ylabel, title, output_
     plt.show()
 
 
-def visualize_distance_distribution(model, dataloader, num_support, class_names):
+def visualize_distance_distribution(model, dataloader, num_support, class_names, device):
     """
     Enhanced function to visualize the distribution of distances between query samples and prototypes.
 
@@ -73,7 +73,7 @@ def visualize_distance_distribution(model, dataloader, num_support, class_names)
         class_names: List of class names.
     """
     model.eval()
-    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+    # device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     distances = []
     class_distances = {class_name: [] for class_name in class_names}
 
@@ -101,34 +101,32 @@ def visualize_distance_distribution(model, dataloader, num_support, class_names)
                     class_distances[class_names[prototype_class.item()]].append(dist)
 
     # Plot overall distance distribution
+    plt.figure(figsize=(15, 8))
+    
+    # Plot overall distribution
     distances = np.array(distances)
     density = gaussian_kde(distances)
     x = np.linspace(distances.min(), distances.max(), 1000)
-    plt.figure(figsize=(10, 6))
-    plt.plot(x, density(x), label="Distance Distribution")
-    plt.title("Overall Distribution of Distances Between Query Samples and Prototypes")
-    plt.xlabel("Distance")
-    plt.ylabel("Density")
-    plt.legend()
-    plt.grid()
-    plt.show()
-
-    # Plot class-specific distance distributions
-    for class_name, dist_list in class_distances.items():
+    plt.plot(x, density(x), label="Overall", linewidth=3, color='black', alpha=0.5)
+    
+    # Plot class-specific distributions with different colors
+    colors = plt.cm.rainbow(np.linspace(0, 1, len(class_names)))
+    for class_name, dist_list, color in zip(class_distances.keys(), class_distances.values(), colors):
         dist_list = np.array(dist_list)
         density = gaussian_kde(dist_list)
         x = np.linspace(dist_list.min(), dist_list.max(), 1000)
-        plt.figure(figsize=(10, 6))
-        plt.plot(x, density(x), label=f"{class_name} Distance Distribution")
-        plt.title(f"{class_name} Distance Distribution")
-        plt.xlabel("Distance")
-        plt.ylabel("Density")
-        plt.legend()
-        plt.grid()
-        plt.show()
+        plt.plot(x, density(x), label=class_name, alpha=0.7, color=color)
+
+    plt.title("Distribution of Distances Between Query Samples and Prototypes")
+    plt.xlabel("Distance")
+    plt.ylabel("Density")
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
 
 
-def plot_confusion_matrix(model, dataloader, class_names, normalize=False):
+def plot_confusion_matrix(model, dataloader, class_names, device, normalize=False):
     """
     Enhanced function to generate and visualize a confusion matrix for the model.
 
@@ -139,7 +137,7 @@ def plot_confusion_matrix(model, dataloader, class_names, normalize=False):
         normalize: Whether to normalize the confusion matrix (row-wise).
     """
     model.eval()
-    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+    # device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     y_true = []
     y_pred = []
 
@@ -174,7 +172,7 @@ def plot_confusion_matrix(model, dataloader, class_names, normalize=False):
     # Plot confusion matrix
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=class_names)
     disp.plot(cmap='Blues', xticks_rotation=45)
-    plt.title("Confusion Matrix")
+    plt.title(f" {mode} Confusion Matrix")
     plt.show()
 
 
@@ -192,7 +190,7 @@ if __name__ == "__main__":
 
     # Initialize the test DataLoader
     test_dataset = ClothingDataset(
-        mode="all_data",
+        mode="all_data", # "top_10", "top_100", "all_data"
         root="C:\\work\\few_shot_clothing_detection\\data\\clean_data"
     )
     test_sampler = PrototypicalBatchSampler(
@@ -209,6 +207,9 @@ if __name__ == "__main__":
         "Pants", "Polo", "Shirt", "Shoes", "Shorts", "Skirt", 
         "T-shirt", "Undershirt"
     ]
+
+    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+    trained_model = trained_model.to(device)
     # Run the analysis functions
-    visualize_distance_distribution(trained_model, test_dataloader, num_support=5, class_names=class_names)
-    plot_confusion_matrix(trained_model, test_dataloader, class_names=class_names, normalize=True)
+    # visualize_distance_distribution(trained_model, test_dataloader, num_support=5, class_names=class_names, device=device)
+    plot_confusion_matrix(trained_model, test_dataloader, class_names=class_names, device=device, normalize=True)
